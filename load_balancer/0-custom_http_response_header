@@ -1,65 +1,51 @@
 #!/usr/bin/env bash
-#task 0
+# Update and install Nginx
+apt-get -y update
+apt-get install -y nginx
 
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Please run this script as root or using sudo."
-  exit 1
-fi
+# Set ownership temporarily for editing
+sudo chown -R "$USER":"$USER" /var/www/html
+sudo chown -R "$USER":"$USER" /etc/nginx/sites-available/default
 
-echo "Installing HAProxy..."
-apt update -y
-apt install haproxy -y
+# Overwrite default Nginx page and 404 page
+echo "Holberton School for the win!" > /var/www/html/index.html
+echo "Ceci n'est pas une page" > /var/www/html/404.html
 
-echo "Configuring HAProxy for load balancing..."
+# Write new Nginx configuration
+cat > /etc/nginx/sites-available/default <<EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
 
-# Backup the existing configuration
-cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+    root /var/www/html;
+    index index.html index.htm 404.html index.nginx-debian.html;
 
-# Set up the HAProxy configuration
-cat > /etc/haproxy/haproxy.cfg <<EOF
-global
-    log /dev/log local0
-    log /dev/log local1 notice
-    chroot /var/lib/haproxy
-    stats socket /run/haproxy/admin.sock mode 660 level admin
-    stats timeout 30s
-    user haproxy
-    group haproxy
-    daemon
+    server_name _;
 
-defaults
-    log     global
-    option  httplog
-    option  dontlognull
-    timeout connect 5000ms
-    timeout client  50000ms
-    timeout server  50000ms
-    errorfile 400 /etc/haproxy/errors/400.http
-    errorfile 403 /etc/haproxy/errors/403.http
-    errorfile 408 /etc/haproxy/errors/408.http
-    errorfile 500 /etc/haproxy/errors/500.http
-    errorfile 502 /etc/haproxy/errors/502.http
-    errorfile 503 /etc/haproxy/errors/503.http
-    errorfile 504 /etc/haproxy/errors/504.http
+    add_header X-Served-By \$hostname;
 
-frontend http_front
-    bind *:80
-    default_backend http_back
+    location /redirect_me {
+        return 301 https://www.youtube.com/watch?v=-VGIt10m9VQ;
+    }
 
-backend http_back
-    balance roundrobin
-    server web-01 [YOUR_WEB01_IP]:80 check
-    server web-02 [YOUR_WEB02_IP]:80 check
+    location /xyz {
+        return 404;
+    }
 
-listen stats
-    bind *:8080
-    stats enable
-    stats uri /stats
-    stats auth admin:password  # Optional stats login credentials
+    error_page 404 /404.html;
+}
 EOF
 
-echo "Restarting HAProxy..."
-systemctl restart haproxy
-systemctl enable haproxy
+# Restore root ownership after edits
+sudo chown -R root:root /var/www/html
+sudo chown -R root:root /etc/nginx/sites-available/default
 
-echo "HAProxy installation and configuration completed."
+# Test Nginx configuration before restart
+nginx -t
+
+# Restart Nginx service
+if [ $? -eq 0 ]; then
+    sudo service nginx restart
+else
+    echo "Nginx configuration test failed."
+fi
