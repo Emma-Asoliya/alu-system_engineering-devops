@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
-# a script that installs HAProxy & makes configurations to meet the following requirements:
+# Create a script to install and configure HAProxy on lb-01 server
+# Configure HAProxy to send traffic to web-01 and web-02 servers
 
-apt-get -y install software-properties-common
-add-apt-repository ppa:vbernat/haproxy-1.8
-apt-get update
-apt-get -y install haproxy
-echo "ENABLED=1" >> /etc/default/haproxy
-printf %s "listen 5456-web
-    bind *:80
-    mode http
-    balance roundrobin
-    server 6292-web-01 50.19.28.95:80 check
-    server 6292-web-02 34.228.9.239:80 check
-" >> /etc/haproxy/haproxy.cfg
+
+# Install and configure HAproxy on my lb-01 server.
+sudo apt-get -y update
+sudo apt-get -y install haproxy
+
+# edit config file
+server_config=\
+"
+frontend  skomaiya_frontend
+        bind *:80
+        mode http
+        default_backend skomaiya_backend
+backend skomaiya_backend
+        balance roundrobin
+    server web-01 107.21.139.169:80 check
+    server web-02 34.224.169.100:80 check
+"
+echo "$server_config" | sudo tee -a /etc/haproxy/haproxy.cfg
+
+# enable haproxy to be started by init script
+echo "ENABLED=1" | sudo tee -a /etc/default/haproxy/
+
+# Testing the HAproxy configuration file
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg
 sudo service haproxy restart
