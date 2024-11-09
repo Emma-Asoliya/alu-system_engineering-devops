@@ -1,27 +1,65 @@
-#!/usr/bin/env bash
-#Updates the current state of the server
-#Installs Nginx on the server
-#Changes the user and user group ownership for editing file
-#overwrites the default page of nginx
-#overwrites the default configuration file default
-#add a redirection and a location for the redirection
-#restarts nginx
-apt-get -y update
-apt-get install -y nginx
-sudo chown -R "$USER":"$USER" /etc/nginx/sites-available/default
-echo "upstream servers{
-	server 50.19.28.95;
-	server 34.228.9.239}
-	server {
-	listen 80 default_server;
-	listen [::]:80 default_server;
-	location / {
-		proxy_pass http://servers;
-		proxy_set_header Host $host;
-		proxy_set_header X-Real-IP $remote_addr;
-		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-		proxy_set_header X-Forwarded-Proto $scheme;}
-}" > /etc/nginx/sites-available/default
-sudo chown -R root:root /etc/nginx/sites-available/default
-sudo service nginx restart
-sudo service nginx reload
+#!usr/bin/env bash
+
+# Ensure the script runs as root
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Please run this script as root or using sudo."
+  exit 1
+fi
+
+echo "Installing HAProxy..."
+apt update -y
+apt install haproxy -y
+
+echo "Configuring HAProxy for load balancing..."
+
+# Backup the existing configuration
+cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+
+# Set up the HAProxy configuration
+cat > /etc/haproxy/haproxy.cfg <<EOF
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    stats socket /run/haproxy/admin.sock mode 660 level admin
+    stats timeout 30s
+    user haproxy
+    group haproxy
+    daemon
+
+defaults
+    log     global
+    option  httplog
+    option  dontlognull
+    timeout connect 5000ms
+    timeout client  50000ms
+    timeout server  50000ms
+    errorfile 400 /etc/haproxy/errors/400.http
+    errorfile 403 /etc/haproxy/errors/403.http
+    errorfile 408 /etc/haproxy/errors/408.http
+    errorfile 500 /etc/haproxy/errors/500.http
+    errorfile 502 /etc/haproxy/errors/502.http
+    errorfile 503 /etc/haproxy/errors/503.http
+    errorfile 504 /etc/haproxy/errors/504.http
+
+frontend http_front
+    bind *:80
+    default_backend http_back
+
+backend http_back
+    balance roundrobin
+    server web-01 [	50.19.28.95]:80 check
+    server web-02 [34.228.9.239]:80 check
+
+listen stats
+    bind *:8080
+    stats enable
+    stats uri /stats
+    stats auth admin:password  # Optional stats login credentials
+EOF
+
+echo "Restarting HAProxy..."
+systemctl restart haproxy
+systemctl enable haproxy
+
+echo "HAProxy installation and configuration completed."
