@@ -1,34 +1,28 @@
 #!/usr/bin/env bash
-# Ignore SC2154 shellcheck warning, as we're assuming the variable is passed or defined elsewhere.
-# shellcheck disable=SC2154
+# Bash script that configures a new Ubuntu machine nginx
+# Configuring Nginx HTTP response header
 
-# Update system packages
-sudo apt update -y
-sudo apt upgrade -y
+sudo apt-get -y update
+sudo apt-get -y install nginx
+ufw allow  'Nginx HTTP'
 
-# Install necessary packages (choose nginx or apache2, depending on your preference)
-sudo apt install -y nginx
+sudo echo "Holberton School" | sudo tee /var/www/html/index.html
 
-# Create a custom HTTP response header configuration
-# In this example, we'll add a custom header for nginx. 
+# redirection config
+replacement="server_name _;\\
+    rewrite ^/redirect_me https://github.com permanent;"
+sudo sed -i "s|server_name _;|$replacement|" /etc/nginx/sites-available/default
 
-# Define the custom header value (you can modify this as needed)
-CUSTOM_HEADER="X-Custom-Header: MyCustomValue"
+#creating 404 error page
+echo "Ceci n'est pas une page" | sudo tee /var/www/html/404.html
+page="listen 80 default_server;\\n\\terror_page 404 /404.html;\\n\\tlocation = /404.html {\\n\\t\\troot /var/www/html;\\n\\t\\tinternal;\\n\\t}"
+sudo sed -i "s|listen 80 default_server;|$page|" /etc/nginx/sites-available/default
 
-# Adding custom header to nginx configuration
-echo 'add_header X-Custom-Header "MyCustomValue" always;' | sudo tee -a /etc/nginx/nginx.conf
 
-# Reload nginx to apply the changes
-sudo systemctl reload nginx
+# Creating an HTTP response header
+sudo sed -i "/server_name _/a add_header X-Served-By $HOSTNAME;" /etc/nginx/sites-available/default
 
-# Check if nginx is running
-sudo systemctl status nginx
 
-# Optionally, you can create a simple test page
-echo "<html><body><h1>Ubuntu Machine Configured!</h1></body></html>" | sudo tee /var/www/html/index.html
-
-# Enable nginx to start on boot
-sudo systemctl enable nginx
-
-# Final message
-echo "Configuration complete. Custom HTTP response header is now set!"
+# config testing and starting
+sudo nginx -t
+sudo service nginx start
