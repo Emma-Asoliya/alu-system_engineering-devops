@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 #Updates the current state of the server
 #Installs Nginx on the server
