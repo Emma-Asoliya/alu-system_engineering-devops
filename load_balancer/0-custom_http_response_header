@@ -1,28 +1,63 @@
+
 #!/usr/bin/env bash
-# Bash script that configures a new Ubuntu machine nginx
-# Configuring Nginx HTTP response header
+# install load balancer
 
-sudo apt-get -y update
-sudo apt-get -y install nginx
-ufw allow  'Nginx HTTP'
+echo -e "Updating and doing some minor checks...\n"
 
-sudo echo "Holberton School" | sudo tee /var/www/html/index.html
+function install() {
+	command -v "$1" &> /dev/null
 
-# redirection config
-replacement="server_name _;\\
-    rewrite ^/redirect_me https://github.com permanent;"
-sudo sed -i "s|server_name _;|$replacement|" /etc/nginx/sites-available/default
+	#shellcheck disable=SC2181
+	if [ $? -ne 0 ]; then
+		echo -e "	Installing: $1\n"
+		sudo apt-get update -y -qq && \
+			sudo apt-get install -y "$1" -qq
+		echo -e "\n"
+	else
+		echo -e "	${1} is already installed.\n"
+	fi
+}
 
-#creating 404 error page
-echo "Ceci n'est pas une page" | sudo tee /var/www/html/404.html
-page="listen 80 default_server;\\n\\terror_page 404 /404.html;\\n\\tlocation = /404.html {\\n\\t\\troot /var/www/html;\\n\\t\\tinternal;\\n\\t}"
-sudo sed -i "s|listen 80 default_server;|$page|" /etc/nginx/sites-available/default
+install haproxy #install haproxy
 
+echo -e "\nSetting up some minor stuff.\n"
 
-# Creating an HTTP response header
-sudo sed -i "/server_name _/a add_header X-Served-By $HOSTNAME;" /etc/nginx/sites-available/default
+# backup default server config file
+sudo cp /etc/haproxy/haproxy.cfg haproxy_default.backup
 
+server_config=\
+"
+defaults
+  mode http
+  timeout client 15s
+  timeout connect 10s
+  timeout server 15s
+  timeout http-request 10s
 
-# config testing and starting
-sudo nginx -t
-sudo service nginx start
+frontend clickviral-tech-frontend
+    bind *:80
+    default_backend clickviral-tech-backend
+
+backend clickviral-tech-backend
+    balance roundrobin
+    server 6353-web-01 52.91.95.193:80 check
+    server 6353-web-02 18.234.88.172:80 check
+"
+
+# shellcheck disable=SC2154
+echo "$server_config" | sudo dd status=none of=/etc/haproxy/haproxy.cfg
+
+# enable haproxy to be started by init script
+echo "ENABLED=1" | sudo dd status=none of=/etc/default/haproxy
+
+echo "configured - Roundrobin On web-01 & web-02"
+
+if [ "$(pgrep -c haproxy)" -le 0 ]; then
+	sudo service haproxy start
+else
+	sudo service haproxy restart
+fi
+
+echo -e "web-01 web-02"
+echo "web-01"
+echo "web-02"

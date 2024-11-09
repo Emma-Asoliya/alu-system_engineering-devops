@@ -16,8 +16,8 @@ frontend  skomaiya_frontend
         default_backend skomaiya_backend
 backend skomaiya_backend
         balance roundrobin
-    server web-01 107.21.139.169:80 check
-    server web-02 34.224.169.100:80 check
+    server web-01 50.19.28.95:80 check
+    server web-02 34.228.9.239:80 check
 "
 echo "$server_config" | sudo tee -a /etc/haproxy/haproxy.cfg
 
